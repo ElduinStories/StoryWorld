@@ -1,0 +1,6 @@
+TODO
+
+The fields.json have a couple "actions" which we will need to specify
+
+"replace_if_empty" - If this field does not exist create it with this components value.
+"ensure_unique" - Check all the objects to ensure no other field by this name in them has the same value

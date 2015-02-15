@@ -1,0 +1,142 @@
+#!/usr/bin/env python
+from os import path
+import sys
+import os
+import json
+import argparse
+import shutil
+
+#This is the start of StoryWorld tool
+def stripEnd(inpath):
+	insplit = inpath.split('/')
+	l = len(insplit)
+	if(l==0):
+		print "ERROR: Not a path?!?"
+		exit()
+	elif(l==1 or l==2):
+		return "/"
+	else:
+		return reduce(lambda x,y: "{0}/{1}".format(x,y), insplit[:-1])
+
+def dbgm(output):
+	global args
+	if(args.debug):
+		if (len(output)==1):
+			print output
+		else:
+			line = ""
+			for o in output:
+				line += o
+			print line
+	return
+
+def findRoot():
+	global rootdir
+
+	cwd = os.getcwd()
+	if(os.path.isdir(os.path.join(cwd,".storyworld"))):
+		return cwd
+	else:
+		l = len(cwd.split('/'))
+		tpath = cwd
+		for i in xrange(l-1):
+			tpath = stripEnd(tpath)
+			if(os.path.isdir(os.path.join(tpath,".storyworld"))):
+				return tpath
+		print "ERROR: Not a storyworld"
+		exit()
+
+def initialize_paths():
+	global prd, cwd, root, swd
+	#Find the storyworld directory wherever it might be
+	prd = stripEnd(sys.argv[0])
+	cwd = os.getcwd()
+	root = findRoot()
+	swd = os.path.join(root,".storyworld")
+
+
+def init(args):
+	global hdir
+	prd = stripEnd(sys.argv[0])
+	cwd = os.getcwd()
+	swd = path.join(cwd,hdir)
+	dbgm([args])
+	dbgm(["hdir = ", hdir])
+	dbgm(["prd = ", prd, " cwd = ", cwd, " swd = ", swd])
+	if(os.path.exists(path.join(cwd,hdir))): #TODO this needs to be improved slightly.
+		print "Already initiated"
+		exit()
+	os.makedirs(swd)
+	os.makedirs(path.join(swd,'objects'))
+	os.makedirs(path.join(swd,'events'))
+#	os.makedirs(path.join(swd,'templates'))
+
+	#Create Index file
+	shutil.copy(path.join(prd,"defaults/index.json"),swd)
+
+	#Copy Templates
+	shutil.copytree(path.join(prd,"defaults/objs"),path.join(swd,'templates'))
+
+	#Create Standard Info Data
+	shutil.copy(path.join(prd,"defaults/stdinfo.json"),swd)
+
+
+def add(args):
+	global prd, cwd, root, swd
+	dbgm(["Add Function being run, Initializing paths"])
+	initialize_paths()
+	dbgm([args])
+	dbgm(["prd = ", prd, " cwd = ", cwd, " swd = ", swd])
+	if(args.all):
+		dbgm(["all flag found"])
+	else:
+		dbgm(["all flag was not found. File: ", args.file])
+
+
+#def cmdParse():
+#	global args
+#	global prd, cwd, root, swd
+	#Find the storyworld directory wherever it might be
+#	prd = stripEnd(sys.argv[0])
+#	cwd = os.getcwd()
+#	root = findRoot()
+#	swd = os.path.join(root,".storyworld")
+
+	#Super Duper Awesome Sauce Command line parser How have I not known about this for so long!
+#	parser = argparse.ArgumentParser(description="storyworld - git-like story manager")
+#	parser.add_argument("-v","--verbose",action="store_true")
+#	parser.add_argument("-d","--debug",action="store_true")
+#
+#	subparser = parser.add_subparsers("subcmd",description="storyworld command list",dest)
+#	parser.add_argument("cmd",help="subcommand to call")
+#	args = parser.parse_args()
+
+
+global args
+global prd, cwd, root, swd
+global hdir
+
+hdir = '.storyworld'
+#Super Duper Awesome Sauce Command line parser How have I not known about this for so long!
+
+# create the top-level parser
+parser = argparse.ArgumentParser(description='storyworld - git-like story manager')
+parser.add_argument('-v','--verbose',action='store_true')
+parser.add_argument('-d','--debug',action='store_true')
+subparsers = parser.add_subparsers(dest='cmd')
+
+#parser for Init function
+parser_init = subparsers.add_parser('init')
+parser_init.set_defaults(func=init)
+
+#parser for add function
+parser_add = subparsers.add_parser('add')
+parser_add.set_defaults(func=add)
+add_group = parser_add.add_mutually_exclusive_group(required=True)
+add_group.add_argument('-A','--all',action='store_true',dest='all')
+add_group.add_argument('file',nargs='?')
+
+args = parser.parse_args()
+args.func(args)
+
+print "DONE! GOODBYE!"
