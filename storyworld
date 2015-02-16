@@ -5,6 +5,8 @@ import os
 import json
 import argparse
 import shutil
+import re
+import hashlib
 
 #This is the start of StoryWorld tool
 def stripEnd(inpath):
@@ -30,46 +32,115 @@ def dbgm(output):
 			print line
 	return
 
-def findRoot():
-	global rootdir
+def vmsg(output):
+	global args
+	if(args.verbose):
+		if (len(output)==1):
+			print output
+		else:
+			line = ""
+			for o in output:
+				line += o
+			print line
+	return
 
+def load_json(path):
+	#This is basically just a wrapper for json opening and loading
+	if(path.isfile(path)):
+		infile = open(path,"r")
+		jobj = json.load(infile) #NEED TO HANDLE ERRORS FROM THIS 
+		infile.close()
+		return jobj
+	else:
+		vmsg(["The file: ", path, "does not exist, Can not load JSON from it"])
+		return None
+
+def store_json(jobj, path):
+	#A wrapper for writing json objects to file
+	outfile = open(path,"w")
+	json.dump(jobj, outfile, indent=4, separators=(',',':'), sort_keys=True)
+	outfile.close()
+	return
+
+def findRoot():
+	global hdir
 	cwd = os.getcwd()
-	if(os.path.isdir(os.path.join(cwd,".storyworld"))):
+	if(path.isdir(os.path.join(cwd,hdir))):
 		return cwd
 	else:
 		l = len(cwd.split('/'))
 		tpath = cwd
 		for i in xrange(l-1):
 			tpath = stripEnd(tpath)
-			if(os.path.isdir(os.path.join(tpath,".storyworld"))):
+			if(path.isdir(path.join(tpath,hdir))):
 				return tpath
 		print "ERROR: Not a storyworld"
 		exit()
 
+def list_subtree_files(cpath,rel,h=False):
+	#This function recursively finds all files contained in a tree structure. It will ignore all hidden directories or files by default
+	hidden = re.compile('^[.]+')
+	top = os.lsdir(cpath)
+	files = []
+	for fd in top:
+		m = hidden.match(fd)
+		if(h or not m):
+			tpath = path.join(cpath,fd)
+			if(path.isfile(tpath)):
+				files.append(path.relpath(tpath,rel))
+			elif(path.isdir(tpath)):
+				rec = list_subtree_files(tpath,rel)
+				for r in rec:
+					files.append(r)
+			else:
+				dbgm("don't know why this should ever happen")
+		else:
+			vmsg(["Hidden file or folder was skipped: ", fd])
+	return files
+
+def construct_hash(relpath):
+	global root
+	hasher = hashlib.sha1()
+	content = open(path.join(root,relpath),"r").read()
+	hasher.update(content)
+	return hasher.hexdigest()
+
+def make_object(relpath):
+	global root, objdir
+	realpath = path.join(root,relpath)
+	if(path.isfile(realpath)):
+		filehash = construct_hash(relpath)
+		objpath = path.join(objdir,filehash)
+		if(path.isfile(objpath)):
+			vmsg(["The object: ", filehash, " Already exists, Skipping."])
+		else:
+			shutil.copy(realpath,objpath)
+		return filehash
+	else:
+		vmsg(["The file: ", relpath, "does not appear to exist. Skipping"])
+	return None
+
+
 def initialize_paths():
-	global prd, cwd, root, swd
+	global prd, cwd, root, swd, hdir, objdir
 	#Find the storyworld directory wherever it might be
 	prd = stripEnd(sys.argv[0])
 	cwd = os.getcwd()
 	root = findRoot()
-	swd = os.path.join(root,".storyworld")
-
+	swd = path.join(root,hdir)
+	objdir = path.join(swd,"objects")
 
 def init(args):
 	global hdir
 	prd = stripEnd(sys.argv[0])
 	cwd = os.getcwd()
 	swd = path.join(cwd,hdir)
-	dbgm([args])
-	dbgm(["hdir = ", hdir])
-	dbgm(["prd = ", prd, " cwd = ", cwd, " swd = ", swd])
 	if(os.path.exists(path.join(cwd,hdir))): #TODO this needs to be improved slightly.
 		print "Already initiated"
 		exit()
 	os.makedirs(swd)
 	os.makedirs(path.join(swd,'objects'))
 	os.makedirs(path.join(swd,'events'))
-#	os.makedirs(path.join(swd,'templates'))
 
 	#Create Index file
 	shutil.copy(path.join(prd,"defaults/index.json"),swd)
@@ -85,35 +156,52 @@ def add(args):
 	global prd, cwd, root, swd
 	dbgm(["Add Function being run, Initializing paths"])
 	initialize_paths()
-	dbgm([args])
-	dbgm(["prd = ", prd, " cwd = ", cwd, " swd = ", swd])
+	index = load_json(path.join(swd,"index.json"))
+	indexfiles = index['objects'].keys()
 	if(args.all):
-		dbgm(["all flag found"])
-	else:
-		dbgm(["all flag was not found. File: ", args.file])
+		#If this Situation is called then we need to look at cwd and subdirectories, find all files and add them to the index (should add in the .swignore which will contain a list of regex which can not match)
+		#Step 1: Find all files
+		files = list_subtree_files(root,root)
+		#Step 3: Loop through all files found.
+		for f in files:
+			#a: If file is not already in index, Check if it does not match any pattern in .swignore
+			if((f in indexfiles) or not check_ignored(f)):
+				#b: Try to make objects from them and add them to the index (if the path does not exist)
+				filehash = make_object(f)
+				if(filehash):
+					index['objects'][f] = filehash
+				else:
+					vmsg(["The file: ",f, " was could not be added to the index"])
+			else:
+				vmsg(["The file: ", f, " was not added to the index (ignored)"])
 
-
-#def cmdParse():
-#	global args
-#	global prd, cwd, root, swd
-	#Find the storyworld directory wherever it might be
-#	prd = stripEnd(sys.argv[0])
-#	cwd = os.getcwd()
-#	root = findRoot()
-#	swd = os.path.join(root,".storyworld")
-
-	#Super Duper Awesome Sauce Command line parser How have I not known about this for so long!
-#	parser = argparse.ArgumentParser(description="storyworld - git-like story manager")
-#	parser.add_argument("-v","--verbose",action="store_true")
-#	parser.add_argument("-d","--debug",action="store_true")
-#
-#	subparser = parser.add_subparsers("subcmd",description="storyworld command list",dest)
-#	parser.add_argument("cmd",help="subcommand to call")
-#	args = parser.parse_args()
-
+	elif(args.update):
+		#If this situation is used. the index file is looped through and only those objects which have changed are added.
+		for f in indexfiles:
+			filehash = make_object(f)
+			if(filehash):
+				index['objects'][f] = filehash
+			else:
+				vmsg(["The file: ",f, " was could not be added to the index"])
+	elif(args.file):
+		#If this situation is run a specific regex should be matched against all files.
+		files = list_subtree_files(root,root)
+		#Step 3: Loop through all files found.
+		for f in files:
+			#a: If file is not already in index, Check if it matches any of the patterns found
+			if(re.search(args.file.encode('string-escape'),f)):
+				#b: Try to make objects from them and add them to the index (if the path does not exist)
+				filehash = make_object(f)
+				if(filehash):
+					index['objects'][f] = filehash
+				else:
+					vmsg(["The file: ",f, " was could not be added to the index"])
+			else:
+				vmsg(["The file: ", f, " was not added to the index (ignored)"])
+	store_json(index, path.join(swd,"index.json"))
 
 global args
-global prd, cwd, root, swd
+global prd, cwd, root, swd, objdir
 global hdir
 
 hdir = '.storyworld'
@@ -134,6 +222,7 @@ parser_add = subparsers.add_parser('add')
 parser_add.set_defaults(func=add)
 add_group = parser_add.add_mutually_exclusive_group(required=True)
 add_group.add_argument('-A','--all',action='store_true',dest='all')
+add_group.add_argument('-u','--update',action='store_true',dest='update')
 add_group.add_argument('file',nargs='?')
 
 args = parser.parse_args()
