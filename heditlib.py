@@ -45,6 +45,11 @@ def recursiveFill(base,fill):
 
 	return
 
+def cleanPath(path):
+	while('' in path):
+		path.remove('')
+	return path
+
 def constructObj(path, obj):
 	#Creates an object that is only the data recursively
 	#Scan path for requested portion
@@ -85,6 +90,7 @@ def constructObj(path, obj):
 
 def doCreate(action,obj):
 	# Test required format is adhered to
+#	print json.dumps(obj, indent=4, separators=(',',':'), sort_keys=True)
 	actionkeys = action.keys()
 	vf = False
 	cf = False
@@ -97,9 +103,8 @@ def doCreate(action,obj):
 	if('context' in actionkeys):
 		cf = True
 
-	actionkeys = action.keys()
-	path = action['path'].split('/')
-#	key = action['key']
+	path = cleanPath(action['path'].split('/'))	
+
 	temp = obj
 	for i in xrange(len(path)):
 		if(path[i]!=""):
@@ -110,6 +115,11 @@ def doCreate(action,obj):
 				temp = temp[path[i]]['value']
 			else:
 				temp = temp[path[i]]
+
+#	print "PATHING"
+#	print path
+#	print json.dumps(obj, indent=4, separators=(',',':'), sort_keys=True)
+#	print json.dumps(temp, indent=4, separators=(',',':'), sort_keys=True)
 
 	# Value Setting
 	if(vf):
@@ -140,6 +150,8 @@ def doCreate(action,obj):
 
 def doModify(action,obj):
 	actionkeys = action.keys()
+	vf = False
+	mf = False
 	if('path' not in actionkeys):
 		return {'code':400, 'resp':'Improperly formed action'}
 	if('part' in actionkeys):
@@ -156,7 +168,7 @@ def doModify(action,obj):
 
 	#now dowit
 	#traverse path
-	path = action['path'].split('/')
+	path = cleanPath(action['path'].split('/'))
 	temp = obj
 	for i in xrange(len(path)):
 		if(path[i]!=""):
@@ -179,7 +191,7 @@ def doModify(action,obj):
 
 
 def doDelete(action,obj):
-	path = action['path'].split('/')
+	path = cleanPath(action['path'].split('/'))
 	temp = obj
 	for i in xrange(len(path)-1):
 		if(path[i] not in temp.keys()):
@@ -206,12 +218,16 @@ def doAction(action, obj):
 	elif(action['type']=='delete'):
 		#Test if valid
 		doDelete(action,obj)
-
 	else:
 		return {'code':400, 'resp':'Action not found'}
 
 def doEvent(event, obj):
+#	print "Printing event"
+#	print json.dumps(event, indent=4, separators=(',',':'), sort_keys=True)
+#	print "Doing Event"
 	for a in event['actions']:
+#		print "doing action"
+#		print json.dumps(a, indent=4, separators=(',',':'), sort_keys=True)
 		doAction(a, obj)
 
 # History Managing functions
@@ -284,40 +300,44 @@ def addEvent(event, time, eid, history):
 #		-> "rm-field" <path>
 #			Removes a field specified by path and all subfields. This can be used to remove anything from entries in a list to whole objects. Note care should be taken as this could break references.
 
-# Test 1: Simple Create
-tobj = {}
-tact = {'type':'create','path':'firstobj','value':'Hello World!'}
 
-doAction(tact, tobj)
+def main():
+	# Test 1: Simple Create
+	tobj = {}
+	tact = {'type':'create','path':'firstobj','value':'Hello World!'}
 
-#print tobj
+	doAction(tact, tobj)
 
-rcobj = constructObj(['firstobj'],tobj)
-#print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)
+	#print tobj
 
-# Test 2: Longer Path starting with /
-tobj = {}
-tact = {'type':'create','path':'/firstobj/firstvalue','value':'Hello World!'}
+	rcobj = constructObj(['firstobj'],tobj)
+	#print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)
 
-doAction(tact, tobj)
+	# Test 2: Longer Path starting with /
+	tobj = {}
+	tact = {'type':'create','path':'/firstobj/firstvalue','value':'Hello World!'}
 
-#print tobj
+	doAction(tact, tobj)
+
+	#print tobj
 
 
-rcobj = constructObj(['firstobj'],tobj)
-#print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)
+	rcobj = constructObj(['firstobj'],tobj)
+	#print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)
 
-# Test 3: Create with more complex value
-tobj = {}
-tact = {'type':'create','path':'/firstobj/names','value':{'one':{'firstname':'Tyler','lastname':'Jackson'},'two':{'firstname':'Tyler','lastname':'Buist'}}}
+	# Test 3: Create with more complex value
+	tobj = {}
+	tact = {'type':'create','path':'/firstobj/names','value':{'one':{'firstname':'Tyler','lastname':'Jackson'},'two':{'firstname':'Tyler','lastname':'Buist'}}}
 
-doAction(tact, tobj)
+	doAction(tact, tobj)
 
-#print tobj
-#print json.dumps(tobj, indent=4, separators=(',',':'), sort_keys=True)
+	#print tobj
+	print json.dumps(tobj, indent=4, separators=(',',':'), sort_keys=True)
 
-rcobj = constructObj(['firstobj'],tobj)
-#print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)
+	rcobj = constructObj(['firstobj'],tobj)
+	print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)
 
-#Looks like Create is working correctly
+	#Looks like Create is working correctly
 
+if __name__ == '__main__':
+	main()

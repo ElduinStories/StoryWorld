@@ -314,7 +314,7 @@ tact = {'type':'create','path':'/firstobj/names','value':{'one':{'firstname':'Ty
 doAction(tact, tobj)
 
 #print tobj
-#print json.dumps(tobj, indent=4, separators=(',',':'), sort_keys=True)
+print json.dumps(tobj, indent=4, separators=(',',':'), sort_keys=True)
 
 rcobj = constructObj(['firstobj'],tobj)
 #print json.dumps(rcobj, indent=4, separators=(',',':'), sort_keys=True)

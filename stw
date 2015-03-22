@@ -136,6 +136,7 @@ def construct_world(hist):
 	eid = hist['start']
 
 	while(eid != ''):
+		print eid
 		#Enact the event on the world state
 		doEvent(hist['events'][eid], world)
 
@@ -153,6 +154,8 @@ def construct_world(hist):
 
 		#Put entry in the timeline
 		hist['events'][eid]['state'] = hexhash
+
+		eid = hist['timeline'][eid]['next']
 
 	return
 
