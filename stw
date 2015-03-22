@@ -1,0 +1,315 @@
+#!/usr/bin/env python
+from os import path
+from heditlib import *
+import sys
+import os
+import json
+import argparse
+import shutil
+import re
+import hashlib
+
+#This is the start of StoryWorld tool
+def convertTime(tobj, output='UST'):
+	if (tobj['system']=='UST'):
+		if(output=='UST'):
+			return tobj['date']['time']
+	print "Conversion not supported"
+	return -1
+
+
+def stripEnd(inpath):
+	insplit = inpath.split('/')
+	l = len(insplit)
+	if(l==0):
+		print "ERROR: Not a path?!?"
+		exit()
+	elif(l==1 or l==2):
+		return "/"
+	else:
+		return reduce(lambda x,y: "{0}/{1}".format(x,y), insplit[:-1])
+
+def dbgm(output):
+	global args
+	if(args.debug):
+		if (len(output)==1):
+			print output
+		else:
+			line = ""
+			for o in output:
+				line += o
+			print line
+	return
+
+def vmsg(output):
+	global args
+	if(args.verbose):
+		if (len(output)==1):
+			print output
+		else:
+			line = ""
+			for o in output:
+				line += o
+			print line
+	return
+
+def load_json(fpath):
+	#This is basically just a wrapper for json opening and loading
+	if(path.isfile(fpath)):
+		infile = open(fpath,"r")
+		jobj = json.load(infile) #NEED TO HANDLE ERRORS FROM THIS 
+		infile.close()
+		return jobj
+	else:
+		vmsg(["The file: ", path, "does not exist, Can not load JSON from it"])
+		return None
+
+def store_json(jobj, path):
+	#A wrapper for writing json objects to file
+	outfile = open(path,"w")
+	json.dump(jobj, outfile, indent=4, separators=(',',':'), sort_keys=True)
+	outfile.close()
+	return
+
+def findRoot():
+	global hdir
+	cwd = os.getcwd()
+	if(path.isdir(os.path.join(cwd,hdir))):
+		return cwd
+	else:
+		l = len(cwd.split('/'))
+		tpath = cwd
+		for i in xrange(l-1):
+			tpath = stripEnd(tpath)
+			if(path.isdir(path.join(tpath,hdir))):
+				return tpath
+		print "ERROR: Not a storyworld"
+		exit()
+
+def list_subtree_files(cpath,rel,h=False):
+	#This function recursively finds all files contained in a tree structure. It will ignore all hidden directories or files by default
+	hidden = re.compile('^[.]+')
+	top = os.listdir(cpath)
+	files = []
+	for fd in top:
+		m = hidden.match(fd)
+		if(h or not m):
+			tpath = path.join(cpath,fd)
+			if(path.isfile(tpath)):
+				files.append(path.relpath(tpath,rel))
+			elif(path.isdir(tpath)):
+				rec = list_subtree_files(tpath,rel)
+				for r in rec:
+					files.append(r)
+			else:
+				dbgm("don't know why this should ever happen")
+		else:
+			vmsg(["Hidden file or folder was skipped: ", fd])
+	return files
+
+def construct_hash(relpath):
+	global root
+	hasher = hashlib.sha1()
+	content = open(path.join(root,relpath),"r").read()
+	hasher.update(content)
+	return hasher.hexdigest()
+
+def make_object(relpath):
+	global root, objdir
+	realpath = path.join(root,relpath)
+	if(path.isfile(realpath)):
+		filehash = construct_hash(relpath)
+		objpath = path.join(objdir,filehash)
+		if(path.isfile(objpath)):
+			vmsg(["The object: ", filehash, " Already exists, Skipping."])
+		else:
+			shutil.copy(realpath,objpath)
+		return filehash
+	else:
+		vmsg(["The file: ", relpath, "does not appear to exist. Skipping"])
+	return None
+
+def construct_world(hist):
+	global prd, cwd, root, swd, hdir, statedir
+
+	world = {}
+	eid = hist['start']
+
+	while(eid != ''):
+		#Enact the event on the world state
+		doEvent(hist['events'][eid], world)
+
+		#World is edited now construct an object
+		worldstring = json.dumps(world, indent=4, separators=(',',':'), sort_keys=True)
+
+		hasher = hashlib.sha1()
+		hasher.update(worldstring)
+		hexhash = hasher.hexdigest()
+
+		#Write a file in the states folder
+		outfile = open(path.join(swd,"states/"+hexhash),"w")
+		outfile.write(worldstring)
+		outfile.close()
+
+		#Put entry in the timeline
+		hist['events'][eid]['state'] = hexhash
+
+	return
+
+def initialize_paths():
+	global prd, cwd, root, swd, hdir, objdir, statedir
+	#Find the storyworld directory wherever it might be
+	prd = stripEnd(sys.argv[0])
+	cwd = os.getcwd()
+	root = findRoot()
+	swd = path.join(root,hdir)
+	objdir = path.join(swd,"objects")
+	statedir = path.join(swd,"states")
+
+def init(args):
+	global hdir
+	prd = stripEnd(sys.argv[0])
+	cwd = os.getcwd()
+	swd = path.join(cwd,hdir)
+	if(os.path.exists(path.join(cwd,hdir))): #TODO this needs to be improved slightly.
+		print "Already initiated"
+		exit()
+	os.makedirs(swd)
+	os.makedirs(path.join(swd,'states'))
+	os.makedirs(path.join(swd,'objects'))
+
+	#Create Index file
+	shutil.copy(path.join(prd,"defaults/index.json"),swd)
+
+	#Copy Templates
+	shutil.copytree(path.join(prd,"defaults/objs"),path.join(swd,'templates'))
+
+	#Create Standard Info Data
+	shutil.copy(path.join(prd,"defaults/stdinfo.json"),swd)
+
+
+def add(args):
+	global prd, cwd, root, swd
+	dbgm(["Add Function being run, Initializing paths"])
+	initialize_paths()
+	index = load_json(path.join(swd,"index.json"))
+	indexfiles = index['objects'].keys()
+	if(args.all):
+		#If this Situation is called then we need to look at cwd and subdirectories, find all files and add them to the index (should add in the .swignore which will contain a list of regex which can not match)
+		#Step 1: Find all files
+		files = list_subtree_files(root,root)
+		#Step 3: Loop through all files found.
+		for f in files:
+			#a: If file is not already in index, Check if it does not match any pattern in .swignore
+			if((f in indexfiles) or not check_ignored(f)):
+				#b: Try to make objects from them and add them to the index (if the path does not exist)
+				filehash = make_object(f)
+				if(filehash):
+					index['objects'][f] = filehash
+				else:
+					vmsg(["The file: ",f, " was could not be added to the index"])
+			else:
+				vmsg(["The file: ", f, " was not added to the index (ignored)"])
+
+	elif(args.update):
+		#If this situation is used. the index file is looped through and only those objects which have changed are added.
+		for f in indexfiles:
+			filehash = make_object(f)
+			if(filehash):
+				index['objects'][f] = filehash
+			else:
+				vmsg(["The file: ",f, " was could not be added to the index"])
+	elif(args.file):
+		#If this situation is run a specific regex should be matched against all files.
+		files = list_subtree_files(root,root)
+		#Step 3: Loop through all files found.
+		for f in files:
+			#a: If file is not already in index, Check if it matches any of the patterns found
+			if(re.search(args.file.encode('string-escape'),f)):
+				#b: Try to make objects from them and add them to the index (if the path does not exist)
+				filehash = make_object(f)
+				if(filehash):
+					index['objects'][f] = filehash
+				else:
+					vmsg(["The file: ",f, " was could not be added to the index"])
+			else:
+				vmsg(["The file: ", f, " was not added to the index (ignored)"])
+	store_json(index, path.join(swd,"index.json"))
+
+def build(args):
+	global prd, cwd, root, swd, objdir, statedir
+	#this function handles the building of history from indexed .stw files
+	initialize_paths()
+
+	#Steps:
+	#1: Load all events from all indexed .stw files (used the stored ones not the existing ones)
+	#2: Initialize a history object
+	#3: Add each event sequentially
+
+	index = load_json(path.join(swd,"index.json"))
+	indexfiles = index['objects'].keys()
+
+	history = initHistory()
+
+	for f in indexfiles:
+		#f is the relative path from root of the file.
+		filehash = index['objects'][f]
+		objpath = path.join(objdir,filehash)
+
+		story = load_json(objpath)
+		eids = story['events'].keys()
+
+		for e in eids:
+			toe = convertTime(story['events'][e]['time'],'UST')
+			addEvent(story['events'][e], toe, e, history)
+
+
+	# Events now added, Time to save the history file
+	store_json(history, path.join(swd,"history.json"))
+
+	#Clear the states folder
+	statefiles = os.listdir(statedir)
+	for f in statefiles:
+		os.remove(path.join(statedir,f))
+
+	# at this point we can build a complete world state at any point in history
+	world = {}
+	if(args.world):
+		construct_world(history)
+
+	return
+
+global args
+global prd, cwd, root, swd, objdir, statedir
+global hdir
+
+hdir = '.storyworld'
+#Super Duper Awesome Sauce Command line parser How have I not known about this for so long!
+
+# create the top-level parser
+parser = argparse.ArgumentParser(description='storyworld - git-like story manager')
+parser.add_argument('-v','--verbose',action='store_true')
+parser.add_argument('-d','--debug',action='store_true')
+subparsers = parser.add_subparsers(dest='cmd')
+
+#parser for Init function
+parser_init = subparsers.add_parser('init')
+parser_init.set_defaults(func=init)
+
+#parser for add function
+parser_add = subparsers.add_parser('add')
+parser_add.set_defaults(func=add)
+add_group = parser_add.add_mutually_exclusive_group(required=True)
+add_group.add_argument('-A','--all',action='store_true',dest='all')
+add_group.add_argument('-u','--update',action='store_true',dest='update')
+add_group.add_argument('file',nargs='?')
+
+#parser for build function
+parser_build = subparsers.add_parser('build')
+parser_build.add_argument('-w','--world',action='store_true',dest='world')
+parser_build.set_defaults(func=build)
+
+args = parser.parse_args()
+args.func(args)
+
+print "DONE! GOODBYE!"

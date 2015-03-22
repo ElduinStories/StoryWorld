@@ -1,0 +1,11 @@
+More Notes:
+
+Command line experience
+
+The goal is that someone can write a .sty (story) file which contains an array of events
+
+They can then add this file to the index (storyworld add <file>) which will create a backup copy of the story in the .storyworld folder labeled by its hash.
+
+After the stories have been staged you construct history (storyworld construct) which will produce the history.json file. This file contains all the events which have been imported from the stories in a "linked list" sorted order based on time. This will also be where conflicting events are spotted (those events which occur at the same time but do not produce essentially equal results.) 
+
+In addition, throughout history construction, the world state is saved to file after each event. This hash is stored as pointer. This allows for quick access of the world state at any point in history.

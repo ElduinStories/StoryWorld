@@ -1,0 +1,120 @@
+storyworld notes
+
+Terminology:
+
+Object - Objects refer to JSON objects which represent some information about the state of the world. This is purposefully vague as Objects can be nearly anything.
+Events - Events have a time of occurence along with a set of actions which occur during that event. Events are JSON objects which have well defined form.
+Actions - Actions modify objects in any of a pre-defined set of possibilities given below.
+Storylines - Storylines are a sequence of Events which are tied together in some what. Storylines are an organizational tool and not a core component.
+
+Universe: Top Level object which everything else is stored in. The Universe is a dict/JSON Object the keys are object ids
+
+Objects:
+Objects store information about the world. Each object has an object ID which must be a unique string identifying the object.
+
+Objects are composed of Fields. A Field is a key:value pairing.
+
+Here a value is actually a tiny object containing four fields, "meta", "context", "index", and "value". When specifying a path this part need not be included as it will be inferred. 
+
+Index is not accessible through "modify" it always is set the its position in the field being added. it is not needed for everything but its easier to just have this tracked by default
+
+Fields - Objects store information in a series of "fields". A field is a key:value pair
+Key - The key of a field is the last component of the path. (See explanation of paths below)
+Value - A value can be any of the following:
+			-string
+			-integer
+			-boolean
+			-dictionary (dict) (in json called objects... but thats confusing).
+
+Here a value is actually a tiny object containing four fields, "meta", "context", "index", and "value". When specifying a path this part need not be included as it will be inferred. 
+
+Index is not accessible through "modify" it always is set the its position in the field being added. it is not needed for everything but its easier to just have this tracked by default
+
+Dict - Elements of a dict are fields. New elements can be added with the add-field operation
+
+NOTE: Arrays are NOT permitted as values due to the uncertain nature of referencing a position in a list. Instead use dicts with arbitrary keys and note the index field for ordering.
+
+Notation:
+In the rest of this document use of [] will denote that something is an array, {} will denote it is a dict, and <> will be used for required arguments
+
+Events:
+
+Actions[]: {}
+	type:
+		-> "create" <path,key,(meta),(context),(value),(template,(set[]))>
+			Creates a field at path with key and sets it to value or pulls from template. New objects are created by passing an empty path.
+			- path : The path to the dict which you want to create a field. If there are intermediary fields missing they will be added automatically
+			- key : The key of the field you are creating.
+			- value (optional) : Sets the "value" to supplied argument
+			- meta (optional) : Sets "meta" to supplied argument
+			- context (optional) : Sets "context" to the supplied argument
+			- template (optional) : Copies the template specified by argument into "value"
+				- set[] (optional) : An array of paths rooted at this field (as keys) with values which it sets at those paths
+			** If field already exists -- Throw error
+
+		-> "modify" <path, (part, (method)), value>
+			Modifies field object values.
+			- path : The path to the field you wish to edit. The last component is the key of the field.
+			- part (optional) : Selects the component of the field value to edit. Options ("meta", "context", "value") Default: "value"
+				- method : Selects method for modification. options ("merge", "append", "overwrite")
+			- value : The value to set the specified component to.
+
+		-> "rm-field" <path>
+			Removes a field specified by path and all subfields. This can be used to remove anything from entries in a list to whole objects. Note care should be taken as this could break references.
+
+time{}: <system,date{}>
+	- system : name of time system to use. (These must be created elsewhere as templates)
+	- date{} : date object containing a series of fields for time keeping. These fields must correspond to the template file which will contain rules of how to translate to UTS (Universal Time System) 
+
+eventdesc: Stores a description of what happens in this event.
+
+
+-----------------------------------------------
+Field Specification
+
+I need a well defined method to specify a field.
+
+Paths to fields are specified with '/' separation. This includes arrays but the value given is the location in the array.
+For example:
+
+{
+	"name" : {"first" : "john", "last" : "smith"},
+	"age" : 24
+	"friends" : [
+		{"name" : {"first" : "peter", "last" : "piper"}, "age" : 20},
+		{"name" : {"first" : "jack", "last" : "nimble"}, "age" : 99},
+		{"name" : {"first" : "mary", "last" : "shepard"}, "age" : 45},
+		{"name" : {"first" : "charlie", "last" : "bucket"}, "age" :16},
+	]
+}
+
+the path "name/first" is storing john
+the path "friends/0/age" is storing 20
+the path "friends/3/name/last" is storing bucket
+
+
+
+Events:
+
+actions[]: {}
+	op:
+		-> "create" <path,key,(meta),(context),(value),(template,(set[]))>
+			Creates a field at path with key and sets it to value or pulls from template. New objects are created by passing an empty path.
+			- path : The path to the dict which you want to create a field. If there are intermediary fields missing they will be added automatically
+			- key : The key of the field you are creating.
+			- value (optional) : Sets the "value" to supplied argument
+			- meta (optional) : Sets "meta" to supplied argument
+			- context (optional) : Sets "context" to the supplied argument
+			- template (optional) : Copies the template specified by argument into "value"
+				- set[] (optional) : An array of paths rooted at this field (as keys) with values which it sets at those paths
+			** If field already exists -- Throw error
+
+		-> "modify" <path, (part, (method)), value>
+			Modifies field object values.
+			- path : The path to the field you wish to edit. The last component is the key of the field.
+			- part (optional) : Selects the component of the field value to edit. Options ("meta", "context", "value") Default: "value"
+				- method : Selects method for modification. options ("merge", "append", "replace")
+			- value : The value to set the specified component to.
+
+		-> "delete" <path>
+			Removes a field specified by path and all subfields. This can be used to remove anything from entries in a list to whole objects. Note care should be taken as this could break references.

@@ -1,0 +1,23 @@
+{
+	"summary":"This is a second testing story. Its goal is to act as a test bed for the storyworld program",
+	"events":{
+		"event1a":{
+			"time":{"system":"UST","date":{"time":2}},
+			"eventdesc":"The beginning of time, nothing can be earlier then this",
+			"actions":[
+				{"type":"create","path":"/obj1a/","value":{"objtype":"random","objname":"First object","testvalue":3,"status":"alive"}},
+				{"type":"create","path":"obj2a","value":{"objtype":"random","objname":"Second object","testvalue":1,"status":"alive"}},
+				{"type":"create","path":"obj3a","value":{"objtype":"random","objname":"Third object","testvalue":4,"status":"alive"}}
+			]
+		},
+		"event2a":{
+			"time":{"system":"UST","date":{"time":6}},
+			"eventdesc":"The End of time. Everything not dead dies now.",
+			"actions":[
+				{"type":"modify","path":"/obj1a/status","value":"dead"},
+				{"type":"modify","path":"/obj2a/status","value":"dead"},
+				{"type":"delete","path":"/obj3a/"}
+			]
+		}
+	}
+}
