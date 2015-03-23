@@ -195,7 +195,7 @@ def findSlot(time, history):
 				return {'prev':prev,'next':next,'time':time,'state':''}
 			prev = next
 			next = history['timeline'][next]['next']
-		return {'prev':history[end],'next':'','time':time,'state':''}
+		return {'prev':history['end'],'next':'','time':time,'state':''}
 
 
 def addEvent(event, time, eid, history):

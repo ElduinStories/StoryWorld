@@ -193,6 +193,10 @@ def init(args):
 	#Create the stw view file
 	shutil.copy(path.join(prd,"defaults/view.json"),swd)
 
+	#Create history file
+	history =initHistory()
+	store_json(history, path.join(swd,"history.json")) 
+
 
 def add(args):
 	global prd, cwd, root, swd
@@ -331,6 +335,9 @@ def view(args):
 
 	
 	slot = findSlot(time, history)
+	if (slot['prev']==''):
+		print "Nothing exists at the time you requested. Did you build the world first? (use stw build -w)"
+		exit()
 	stateid = history['timeline'][slot['prev']]['state']
 
 	try:
