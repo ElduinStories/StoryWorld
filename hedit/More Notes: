@@ -9,3 +9,12 @@ They can then add this file to the index (storyworld add <file>) which will crea
 After the stories have been staged you construct history (storyworld construct) which will produce the history.json file. This file contains all the events which have been imported from the stories in a "linked list" sorted order based on time. This will also be where conflicting events are spotted (those events which occur at the same time but do not produce essentially equal results.) 
 
 In addition, throughout history construction, the world state is saved to file after each event. This hash is stored as pointer. This allows for quick access of the world state at any point in history.
+
+
+Viewing
+
+One veiw we want is to veiw the world state (compressed) at a given time. OR a particular object with objid
+
+stw veiw -t <UST_value|{time object}> <-o objid|-A>
+
+stw checkout should scroll time to a particular place and allow for editing (including insertion of events)

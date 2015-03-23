@@ -153,7 +153,7 @@ def construct_world(hist):
 		outfile.close()
 
 		#Put entry in the timeline
-		hist['events'][eid]['state'] = hexhash
+		hist['timeline'][eid]['state'] = hexhash
 
 		eid = hist['timeline'][eid]['next']
 
@@ -189,6 +189,9 @@ def init(args):
 
 	#Create Standard Info Data
 	shutil.copy(path.join(prd,"defaults/stdinfo.json"),swd)
+
+	#Create the stw view file
+	shutil.copy(path.join(prd,"defaults/view.json"),swd)
 
 
 def add(args):
@@ -266,10 +269,6 @@ def build(args):
 			toe = convertTime(story['events'][e]['time'],'UST')
 			addEvent(story['events'][e], toe, e, history)
 
-
-	# Events now added, Time to save the history file
-	store_json(history, path.join(swd,"history.json"))
-
 	#Clear the states folder
 	statefiles = os.listdir(statedir)
 	for f in statefiles:
@@ -280,6 +279,74 @@ def build(args):
 	if(args.world):
 		construct_world(history)
 
+	# Events now added, Time to save the history file
+	store_json(history, path.join(swd,"history.json"))
+
+	return
+
+#Time to add some access functions
+def view(args):
+	global prd, cwd, root, swd, objdir, statedir
+	initialize_paths()
+	#This needs to take the time argument, find the bounding events. Retrieve the state. display
+
+
+	history = load_json(path.join(swd,"history.json"))
+	if(args.hflag):
+		obj = history['timeline']
+		print "\n\n-------------------------------------"
+		print "Timeline:"
+		print json.dumps(obj, indent=4, separators=(',',':'), sort_keys=True)
+		exit()
+
+	if(args.eflag):
+		events = history['events']
+		print "\n\n---------------------------------------"
+		if (args.eid != ''):
+			events = events[args.eid]
+			print "Event: " + args.eid
+		else:
+			print "Events: "
+		print json.dumps(events, indent=4, separators=(',',':'), sort_keys=True)
+		exit()
+
+
+	if(args.time != -1):
+		
+		try:
+			tobj = json.loads(args.time)
+		except ValueError:
+			print "Could not parse time argument correctly"
+			exit()
+
+		if (isinstance(tobj, int)):
+				time = tobj
+		else:
+			time = convertTime(tobj)
+		
+	else:
+		#read state pointer from veiw.json
+		viewdata = load_json(path.join(swd,"view.json"))
+		time = viewdata['time']
+
+	
+	slot = findSlot(time, history)
+	stateid = history['timeline'][slot['prev']]['state']
+
+	try:
+		obj = load_json(path.join(statedir,stateid))
+	except IOError:
+		print "The world state was not found. Try building the state first"
+		exit()
+
+	cobj = cleanObj(args.path, obj)
+
+	print "\n\n-------------------------------------"
+	print "Displaying State: " + stateid
+	print "Path: " + args.path
+
+
+	print json.dumps(cobj, indent=4, separators=(',',':'), sort_keys=True)
 	return
 
 global args
@@ -311,6 +378,15 @@ add_group.add_argument('file',nargs='?')
 parser_build = subparsers.add_parser('build')
 parser_build.add_argument('-w','--world',action='store_true',dest='world')
 parser_build.set_defaults(func=build)
+
+#parser for view function
+parser_view = subparsers.add_parser('view')
+parser_view.add_argument('-t','--time',action='store',dest='time',default=-1)
+parser_view.add_argument('-p','--path',action='store',dest='path',default='')
+parser_view.add_argument('--history',action='store_true',dest='hflag')
+parser_view.add_argument('-e','--event',action='store_true',dest='eflag')
+parser_view.add_argument('-i','--id',action='store',dest='eid',default='')
+parser_view.set_defaults(func=view)
 
 args = parser.parse_args()
 args.func(args)
