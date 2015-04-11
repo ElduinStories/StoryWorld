@@ -94,4 +94,4 @@ def validateStory(story):
 			raise ValueError("Invalid Story: Improperly formed event")
 	return
 
-def 
+#TODO: Add a file error-checker that can be used to check that each component has been created correctly
