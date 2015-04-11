@@ -1,0 +1,7 @@
+{
+	"name" : {"First" : "John", "Last" : "Chrichton"},
+	"age" : 45,
+	"married" : false,
+	"friends" : ["Alice","Bob","Charlie"],
+	"status" : "alive"
+}

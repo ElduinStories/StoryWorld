@@ -1,181 +1,119 @@
 #!/usr/bin/env python
 from os import path
-import sys
-import os
-import json
-import shutil
-import re
-import hashlib
+from subprocess import call
+from validate import *
+import sys, tempfile, os, json, shutil, re, hashlib
+import json_delta as jd
 
-def validate(value):
-	return True
+#=================================================================================================================
+#Path Functions
+def pathjoin(patharray):
+	pathstr = ""
+	for e in patharray:
+		if (e != ""):
+			pathstr = pathstr + "/" + str(e)
+	return pathstr
 
-def recursiveFill(base,fill):
-	if (isinstance(fill,dict)):
-		#do recursive key filling
-		for k in fill.keys():
-			base['value'][k] = {'value':{},'meta':{'index':len(base['value'])}}#,'context':{}}
-			recursiveFill(base['value'][k],fill[k])
-	else:
-		base['value'] = fill
+def pathsplit(pathstr):
+	patharray = pathstr.split("/")
+	while('' in patharray):
+		patharray.remove('')
+	return patharray
 
-	return
-
-def cleanPath(path):
-	while('' in path):
-		path.remove('')
-	return path
-
-def pathTo(pathstr, obj, create=False):
+def pathTo(pathstr, obj):
 	#Returns the sub object following the path provided
-	path = cleanPath(pathstr.split('/'))	
+	path = pathsplit(pathstr)	
 
 	temp = obj
 	for i in xrange(len(path)):
 		if(path[i]!=""):
 			if(path[i] not in temp.keys()):
-				#This part of the path does not exist. Create it
-				if(create):
-					temp[path[i]] = {'value':{},'meta':{'index':len(temp)}}
-				else:
-					raise ValueError("Invalid Path Requested")
-			if(i != len(path)-1):
-				temp = temp[path[i]]['value']
-			else:
-				temp = temp[path[i]]
+				raise ValueError("Invalid Path Requested")
+			temp = temp[path[i]]
 	return temp
 
-def cleanObj(path, obj):
-	#Creates an object that is only the data recursively
-	temp = pathTo(path, obj)
+#The purpose of this function is to clean out any arrays and replace them with numbered dicts
+def cleanLists(value):
+	if (isinstance(value, dict)):
+		#recursive with existing keys
+		ret = {}
+		keys = value.keys()
+		for k in keys:
+			ret[k] = cleanLists(value[k])
 
-	retobj = {}
-	if ('value' in temp.keys()):
-		if(isinstance(temp['value'], dict)):
-			for k in temp['value'].keys():
-				retobj[k] = cleanObj(k,temp['value'])
-		else:
-			retobj = temp['value']
+		return ret
+
+	elif (isinstance(value, list)):
+		#recursive with numbered keys
+		ret = {}
+		k = 0
+		for v in value:
+			ret[str(k)] = cleanLists(v)
+			k = k + 1
+
+		return ret
 	else:
-		for k in temp.keys():
-			retobj[k] = cleanObj("",temp[k])
+		#Normal type just return it
+		return value
 
-	return retobj
+#Actions/ Events functions
+def toActions(diff):
+	actions = []
+	for d in diff:
+		apath = pathjoin(d[0])
+		
+		#construct action
+		action = {}
+		action["path"] = apath
+		if (len(d)==2):
+			#Modify
+			action["type"] = "modify"
+			action["value"] = cleanLists(d[1])
+			try:
+				validateValue(action['value'])
+			except ValueError:
+				raise ValueError("Conversion to Action failed: Value could not be repaired.")
+		elif (len(d)==1):
+			#Delete
+			action["type"] = "delete"
+		else:
+			raise ValueError("Improper diff")
 
-	# This function Checks if the format of value is valid (i.e it must have the key:{'value':value,'context':context}) format
+		actions.append(action)
 
-#		-> "create" <path,(context),(value)>
-#			Creates a field at path with key and sets it to value or pulls from template. New objects are created by passing an empty path.
-#			- path : The path to the dict which you want to create a field. If there are intermediary fields missing they will be added automatically
-#			- value (optional) : Sets the "value" to supplied argument
-#			- meta (optional) : Sets "meta" to supplied argument
-#			- context (optional) : Sets "context" to the supplied argument
-#			- template (optional) : Copies the template specified by argument into "value"
-#				- set[] (optional) : An array of paths rooted at this field (as keys) with values which it sets at those paths
-#			** If field already exists -- Throw error
+	return actions
 
-def doCreate(action,obj):
-	# Test required format is adhered to
-#	print json.dumps(obj, indent=4, separators=(',',':'), sort_keys=True)
-	actionkeys = action.keys()
-	vf = False
-	cf = False
-	if('path' not in actionkeys):
-		raise ValueError("Improperly formed action: Missing \'path\' argument")
-	if('value' in actionkeys):
-		vf = True
+def toDiff(actions):
+	diff = []
+	for action in actions:
+		d = []
+
+		#Purform Action Validation (All in one)
 		try:
-			validate(action['value'])
+			validateAction(action)
 		except ValueError:
-			print ("Improperly formed action: Bad \'value\' format")
-			raise
+			raise ValueError("Unable to convert to Diff: Invalid Action")
 
-	if('context' in actionkeys):
-		cf = True
+		d.append(pathsplit(action["path"]))
 
-	temp = pathTo(action['path'], obj, True)
+		if (action['type'] == "modify"):
+			d.append(action['value'])
+			diff.append(d)
+		elif (action['type'] == "delete"):
+			diff.append(d)
 
-	# Value Setting
-	if(vf):
-		recursiveFill(temp,action['value'])
-
-	# Context Setting
-	if(cf):
-		#Straight copy.
-		temp['context'] = action['context']
-
-	return
-
-
-#		-> "modify" <path, (part, (method)), value>
-#			Modifies field object values.
-#			- path : The path to the field you wish to edit. The last component is the key of the field.
-#			- part (optional) : Selects the component of the field value to edit. Options ("context", "value") Default: "value"
-#				- method : Selects method for modification. options ("merge", "replace")
-#			- value : The value to set the specified component to.
-
-def doModify(action,obj):
-	actionkeys = action.keys()
-	vf = True
-	mf = True
-	if('path' not in actionkeys):
-		return {'code':400, 'resp':'Improperly formed action'}
-	if('part' in actionkeys):
-		if(action['part'] == 'context'):
-			vf = False
-	if(vf):
-		if not validate(action['value']):
-			return {'code':400, 'resp':'Improperly formed value'}
-	if('method' in actionkeys):
-		if(action['method']=='replace'):
-			mf = False
-
-	temp = pathTo(action['path'], obj, True)
-
-	if(vf):
-		if(not mf):
-			recursiveFill(temp,action['value'])
-		else:
-			temp['value']={} #clear then fill
-			recursiveFill(temp,action['value'])
-	else:
-		temp['context'] = action['value']
-
-
-def doDelete(action, obj):
-	path = cleanPath(action['path'].split('/'))
-	temp = obj
-	for i in xrange(len(path)-1):
-		if(path[i] not in temp.keys()):
-			raise ValueError("Invalid Path Requested")
-		if(path[i]!=""):
-			temp = temp[path[i]]['value']
-	if(path[-1] not in temp.keys()):
-		raise ValueError("Invalid Path Requested")
-	else:
-		del temp[path[-1]]
-		return
-
-
-def doAction(action, obj):
-	#action is a dict passed in
-	if(action['type']=='create'):
-		#Test if valid
-		doCreate(action, obj)
-
-	elif(action['type']=='modify'):
-		#Test if valid
-		doModify(action, obj)
-
-	elif(action['type']=='delete'):
-		#Test if valid
-		doDelete(action,obj)
-	else:
-		return {'code':400, 'resp':'Action not found'}
+	return diff
 
 def doEvent(event, obj):
-	for a in event['actions']:
-		doAction(a, obj)
+	try:
+		validateEvent(event)
+	except ValueError:
+		raise ValueError("Unable to do Event: Invalid Event")
+
+	diff = toDiff(event['actions'])
+	jd.patch(obj, diff, True)
+	return
+
 
 # History Managing functions
 def initHistory():
@@ -201,6 +139,11 @@ def findSlot(time, history):
 def addEvent(event, time, eid, history):
 	# This function needs to add an event to the history object. This includes placing the event in the correct time slot.
 	# Store the event
+	try:
+		validateEvent(event)
+	except ValueError:
+		raise ValueError("Could not add event: Invalid Event Object")
+
 	history['events'][eid] = event
 
 	# Add to timeline
@@ -219,7 +162,6 @@ def addEvent(event, time, eid, history):
 		history['timeline'][entry['next']]['prev'] = eid
 
 	return
-
 
 def main():
 	# Test 1: Simple Create

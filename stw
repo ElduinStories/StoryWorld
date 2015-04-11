@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from os import path
 from heditlib import *
+from validate import *
 import sys
 import os
 import json
@@ -10,7 +11,9 @@ import re
 import hashlib
 
 #This is the start of StoryWorld tool
-def convertTime(tobj, output='UST'):
+def convertTime(tobj, output='UST'):      ###TODO: NEED TIME CONVERSION
+	validateTime(tobj)
+
 	if (tobj['system']=='UST'):
 		if(output=='UST'):
 			return tobj['date']['time']
@@ -195,7 +198,7 @@ def init(args):
 
 	#Create history file
 	history =initHistory()
-	store_json(history, path.join(swd,"history.json")) 
+	store_json(history, path.join(swd,"history.json"))
 
 
 def add(args):
@@ -244,6 +247,7 @@ def add(args):
 					vmsg(["The file: ",f, " was could not be added to the index"])
 			else:
 				vmsg(["The file: ", f, " was not added to the index (ignored)"])
+
 	store_json(index, path.join(swd,"index.json"))
 
 def build(args):
@@ -346,7 +350,7 @@ def view(args):
 		print "The world state was not found. Try building the state first"
 		exit()
 
-	cobj = cleanObj(args.path, obj)
+	cobj = pathTo(args.path, obj)
 
 	print "\n\n-------------------------------------"
 	print "Displaying State: " + stateid
@@ -383,6 +387,13 @@ def checkout(args):
 	print "Set time to: " + str(time)
 	return
 
+#This is an interactive function mode for editing stories creating the story file if need be and helping walk through Event creation by performing diffs on data
+def story(args):
+	global prd, cwd, root, swd, objdir, statedir
+	x=1
+
+
+	return
 
 global args
 global prd, cwd, root, swd, objdir, statedir
@@ -428,7 +439,11 @@ parser_checkout = subparsers.add_parser('checkout')
 parser_checkout.add_argument('-t','--time',action='store',dest='time',default=-1)
 parser_checkout.set_defaults(func=checkout)
 
+#parser for rm function
+
+#parser for ...?
+
 args = parser.parse_args()
 args.func(args)
 
-print "DONE! GOODBYE!"
+#print "DONE! GOODBYE!"
