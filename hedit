@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+from os import path
+from heditlib import *
+from validate import *
+import sys
+import os
+import json
+import argparse
+import shutil
+import re
+import hashlib
+
+##This is the history editor Hedit. An Interactive companion tool for the storyworld system aiding the creation of storyfiles.
+
+
+def initialize_paths():
+	global prd, cwd, root, swd, hdir, objdir, statedir, env
+	#Find the storyworld directory wherever it might be
+	prd = stripEnd(sys.argv[0])
+	cwd = os.getcwd()
+	root = findRoot()
+	swd = path.join(root,hdir)
+	objdir = path.join(swd,"objects")
+	statedir = path.join(swd,"states")
+	env = {'prd':prd,'cwd':cwd,'root':root,'swd':swd,'objdir':objdir,'statedir':statedir}
+
+def main(args):
+	#Start with opening the file
+	
+	return
+
+global args
+global prd, cwd, root, swd, objdir, statedir
+global hdir
+global env
+
+hdir = '.storyworld'
+#Super Duper Awesome Sauce Command line parser How have I not known about this for so long!
+
+# create the top-level parser
+parser = argparse.ArgumentParser(description='hedit - story editor companion to storyworld system')
+parser.add_argument('file')
+parser.add_argument('-v','--verbose',action='store_true')
+
+args = parser.parse_args()
+initialize_paths()
+main()

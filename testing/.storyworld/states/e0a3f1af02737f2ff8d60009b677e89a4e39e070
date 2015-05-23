@@ -1,0 +1,14 @@
+{
+    "obj1":{
+        "objname":"First object",
+        "objtype":"random",
+        "status":"dead",
+        "testvalue":4
+    },
+    "obj2":{
+        "objname":"Second object",
+        "objtype":"random",
+        "status":"dead",
+        "testvalue":2
+    }
+}

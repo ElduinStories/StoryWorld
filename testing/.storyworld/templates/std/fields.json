@@ -1,0 +1,9 @@
+{
+	"parts" : [
+		{"comp" : "name", "type" : "str", "require" : true},
+		{"comp" : "type", "type" : "str", "require" : true, "choices" : ["int","float","str","bool"]},
+		{"comp" : "unique", "type" : "bool", "require" : false, "default" : false, "action" : "ensure_unique_value"},
+		{"comp" : "require", "type" : "bool", "require" : false, "default" : false},
+		{"comp" : "default", "require" : false, "action" : "replace_if_empty"},
+	]
+}

@@ -129,8 +129,7 @@ def make_object(relpath):
 			shutil.copy(realpath,objpath)
 		return filehash
 	else:
-		vmsg(["The file: ", relpath, "does not appear to exist. Skipping"])
-	return None
+		raise IOError("Invalid Path")
 
 def construct_world(hist):
 	global prd, cwd, root, swd, hdir, statedir
@@ -163,7 +162,7 @@ def construct_world(hist):
 	return
 
 def initialize_paths():
-	global prd, cwd, root, swd, hdir, objdir, statedir
+	global prd, cwd, root, swd, hdir, objdir, statedir, env
 	#Find the storyworld directory wherever it might be
 	prd = stripEnd(sys.argv[0])
 	cwd = os.getcwd()
@@ -171,6 +170,7 @@ def initialize_paths():
 	swd = path.join(root,hdir)
 	objdir = path.join(swd,"objects")
 	statedir = path.join(swd,"states")
+	env = {'prd':prd,'cwd':cwd,'root':root,'swd':swd,'objdir':objdir,'statedir':statedir}
 
 def init(args):
 	global hdir
@@ -200,11 +200,9 @@ def init(args):
 	history =initHistory()
 	store_json(history, path.join(swd,"history.json"))
 
-
+#TODO: THIS NEEDS TO BE CLEANED UP
 def add(args):
 	global prd, cwd, root, swd
-	dbgm(["Add Function being run, Initializing paths"])
-	initialize_paths()
 	index = load_json(path.join(swd,"index.json"))
 	indexfiles = index['objects'].keys()
 	if(args.all):
@@ -216,22 +214,20 @@ def add(args):
 			#a: If file is not already in index, Check if it does not match any pattern in .swignore
 			if((f in indexfiles) or not check_ignored(f)):
 				#b: Try to make objects from them and add them to the index (if the path does not exist)
-				filehash = make_object(f)
-				if(filehash):
+				try:
+					filehash = make_object(f)
 					index['objects'][f] = filehash
-				else:
-					vmsg(["The file: ",f, " was could not be added to the index"])
-			else:
-				vmsg(["The file: ", f, " was not added to the index (ignored)"])
+				except IOError:
+					pass
 
 	elif(args.update):
 		#If this situation is used. the index file is looped through and only those objects which have changed are added.
 		for f in indexfiles:
-			filehash = make_object(f)
-			if(filehash):
+			try:
+				filehash = make_object(f)
 				index['objects'][f] = filehash
-			else:
-				vmsg(["The file: ",f, " was could not be added to the index"])
+			except IOError:
+				pass
 	elif(args.file):
 		#If this situation is run a specific regex should be matched against all files.
 		files = list_subtree_files(root,root)
@@ -240,15 +236,35 @@ def add(args):
 			#a: If file is not already in index, Check if it matches any of the patterns found
 			if(re.search(args.file.encode('string-escape'),f)):
 				#b: Try to make objects from them and add them to the index (if the path does not exist)
-				filehash = make_object(f)
-				if(filehash):
+				try:
+					filehash = make_object(f)
 					index['objects'][f] = filehash
-				else:
-					vmsg(["The file: ",f, " was could not be added to the index"])
-			else:
-				vmsg(["The file: ", f, " was not added to the index (ignored)"])
+				except IOError:
+					pass
 
 	store_json(index, path.join(swd,"index.json"))
+
+def ls(args):
+	global swd
+	if (args.ttl=='index'):
+		index = load_json(path.join(swd,"index.json"))
+		for f in index['objects'].keys():
+			print f
+	return
+
+def rm(args):
+	global swd, objdir
+	f = path.relpath(root, args.file) ###THIS COULD BE MESSY SHOULD CLEAN IT UP TO BE MORE RESISTANT TO DELETING FILES BASED ON ABSOLUTE PATHs
+	index = load_json(path.join(swd,"index.json"))
+	if (f in index['objects'].keys()):
+		#file exists remove from index
+		#remove cached version
+		os.remove(path.join(objdir, index['objects'][f]))
+		del index[f]
+
+	store_json(index, path.join(swd,"index.json"))
+	return
+
 
 def build(args):
 	global prd, cwd, root, swd, objdir, statedir
@@ -295,7 +311,6 @@ def build(args):
 #Time to add some access functions
 def view(args):
 	global prd, cwd, root, swd, objdir, statedir
-	initialize_paths()
 	#This needs to take the time argument, find the bounding events. Retrieve the state. display
 
 
@@ -387,17 +402,11 @@ def checkout(args):
 	print "Set time to: " + str(time)
 	return
 
-#This is an interactive function mode for editing stories creating the story file if need be and helping walk through Event creation by performing diffs on data
-def story(args):
-	global prd, cwd, root, swd, objdir, statedir
-	x=1
-
-
-	return
 
 global args
 global prd, cwd, root, swd, objdir, statedir
 global hdir
+global env
 
 hdir = '.storyworld'
 #Super Duper Awesome Sauce Command line parser How have I not known about this for so long!
@@ -420,6 +429,16 @@ add_group.add_argument('-A','--all',action='store_true',dest='all')
 add_group.add_argument('-u','--update',action='store_true',dest='update')
 add_group.add_argument('file',nargs='?')
 
+#parser for rm function
+parser_rm = subparsers.add_parser('rm')
+parser_rm.set_defaults(func=rm)
+parser_rm.add_argument('file')
+
+#parser for ls function
+parser_ls = subparsers.add_parser('ls')
+parser_ls.set_defaults(func=ls)
+parser_ls.add_argument('ttl',choices=['index'])
+
 #parser for build function
 parser_build = subparsers.add_parser('build')
 parser_build.add_argument('-w','--world',action='store_true',dest='world')
@@ -439,11 +458,12 @@ parser_checkout = subparsers.add_parser('checkout')
 parser_checkout.add_argument('-t','--time',action='store',dest='time',default=-1)
 parser_checkout.set_defaults(func=checkout)
 
-#parser for rm function
-
 #parser for ...?
 
 args = parser.parse_args()
+if(args.cmd != "init"):
+	initialize_paths()
+
 args.func(args)
 
 #print "DONE! GOODBYE!"

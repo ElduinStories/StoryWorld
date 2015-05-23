@@ -1,0 +1,20 @@
+{
+    "obj1":{
+        "objname":"First object",
+        "objtype":"random",
+        "status":"alive",
+        "testvalue":3
+    },
+    "obj2":{
+        "objname":"Second object",
+        "objtype":"random",
+        "status":"alive",
+        "testvalue":1
+    },
+    "obj3":{
+        "objname":"Third object",
+        "objtype":"random",
+        "status":"alive",
+        "testvalue":4
+    }
+}

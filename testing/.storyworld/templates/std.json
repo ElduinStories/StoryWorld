@@ -1,0 +1,11 @@
+{
+	"fields" : [
+		{"name" : "objid", "type" : "str", "unique" : true, "require" : true},
+		{"name" : "objtype", "type" : "str", "require" : true},
+		{"name" : "creator", "type" : "str"}
+	],
+	"attributes" : [
+	],
+	"refs" : [
+	],
+}
